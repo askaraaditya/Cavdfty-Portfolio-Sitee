@@ -2,7 +2,6 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useAuthStore, useDataStore, useUIStore } from '../store'
 import { useDebounce } from '../hooks'
 
-// Helper untuk format label kategori (contoh: 'design' -> 'Design')
 const catLabel = (c) => (c ? c.charAt(0).toUpperCase() + c.slice(1) : '')
 
 /* ── WorkCard Component ─────────────────────────────────── */
@@ -25,23 +24,35 @@ function WorkCard({ project, isAdmin, onDelete, onDragStart, onDrop, onClick }) 
     >
       {isAdmin && (
         <div className="w-controls">
-          <button className="w-drag vis" title="Tahan untuk pindah urutan">☰</button>
+          <button className="w-drag vis" title="Geser Urutan">☰</button>
           <button className="w-del vis" onClick={e => { e.stopPropagation(); onDelete(project) }}>✕</button>
         </div>
       )}
 
       <div className="wm">
         {project.media_url ? (
-          project.media_type === 'video' ? (
-            <video key={project.id} src={project.media_url} muted loop playsInline preload="metadata" />
+          project.media_type === 'video' || project.media_url.match(/\.(mp4|webm|ogg|mov)$/i) ? (
+            <video 
+              key={project.id} 
+              src={project.media_url} 
+              muted loop playsInline autoPlay 
+              preload="metadata"
+              className="w-media"
+            />
           ) : (
-            <img key={project.id} src={project.media_url} alt={project.title} loading="lazy" />
+            <img 
+              key={project.id} 
+              src={project.media_url} 
+              alt={project.title} 
+              loading="lazy" 
+              className="w-media"
+            />
           )
         ) : (
           <div className="wph">{project.emoji || '🎨'}</div>
         )}
         <div className="wov">
-          <div>
+          <div className="wov-inner">
             <div className="wov-t">{project.title}</div>
             <div className="wov-c">{catLabel(project.category)}</div>
           </div>
@@ -62,7 +73,6 @@ export function WorkGrid({ onToast }) {
   const { projects, deleteProject, reorderProjects } = useDataStore()
   const { activeFilter, openModal } = useUIStore()
 
-  // Logic Filtering: Memastikan data reaktif terhadap klik tombol kategori
   const filtered = useMemo(() => {
     const list = projects || []
     if (!activeFilter || activeFilter === 'all') return list
@@ -106,13 +116,6 @@ export function WorkGrid({ onToast }) {
             onClick={() => setLightbox({ open: true, idx: i })}
           />
         ))}
-
-        {filtered.length === 0 && !isAdmin && (
-          <div className="wgrid-empty" style={{ gridColumn: '1/-1', textAlign: 'center', padding: '100px 0', opacity: 0.5 }}>
-             <p>Belum ada karya di kategori ini.</p>
-          </div>
-        )}
-
         {isAdmin && (
           <div className="wadd" onClick={() => openModal('upload')}>
             <div className="wadd-c">+</div>
@@ -120,15 +123,14 @@ export function WorkGrid({ onToast }) {
           </div>
         )}
       </div>
-
-      {lightbox.open && (
-        <Lightbox
-          items={filtered}
-          initialIdx={lightbox.idx}
-          onClose={() => setLightbox({ open: false, idx: 0 })}
-        />
+      {filtered.length === 0 && !isAdmin && (
+        <div className="empty-state">
+          <p>Belum ada karya untuk kategori ini.</p>
+        </div>
       )}
-
+      {lightbox.open && (
+        <Lightbox items={filtered} initialIdx={lightbox.idx} onClose={() => setLightbox({ open: false, idx: 0 })} />
+      )}
       {confirm && (
         <div className="mov open" onClick={e => e.target === e.currentTarget && setConfirm(null)}>
           <div className="mb">
@@ -151,11 +153,11 @@ export function WorkGrid({ onToast }) {
   )
 }
 
-/* ── WorkFilters Component (PENTING: Jangan dihapus!) ── */
+/* ── WorkFilters Component ──────────────────────────────── */
 export function WorkFilters() {
   const activeFilter = useUIStore(s => s.activeFilter)
-  const setFilter    = useUIStore(s => s.setFilter)
-  const projects     = useDataStore(s => s.projects) || []
+  const setFilter = useUIStore(s => s.setFilter)
+  const projects = useDataStore(s => s.projects) || []
 
   const counts = useMemo(() => ({
     all: projects.length,
@@ -201,10 +203,10 @@ function Lightbox({ items, initialIdx, onClose }) {
     <div className="lb open" onClick={e => e.target === e.currentTarget && onClose()}>
       <button className="lb-close" onClick={onClose}>✕</button>
       <div className="lb-content">
-        {p.media_type === 'video' ? (
-          <video src={p.media_url} controls autoPlay style={{ maxHeight: '80vh', maxWidth: '90vw' }} />
+        {p.media_type === 'video' || p.media_url.match(/\.(mp4|webm|ogg|mov)$/i) ? (
+          <video src={p.media_url} controls autoPlay className="lb-media" />
         ) : (
-          <img src={p.media_url} alt={p.title} style={{ maxHeight: '80vh', maxWidth: '90vw', objectFit: 'contain' }} />
+          <img src={p.media_url} alt={p.title} className="lb-media" />
         )}
         <div className="lb-info">
           <div className="lb-title">{p.title}</div>
