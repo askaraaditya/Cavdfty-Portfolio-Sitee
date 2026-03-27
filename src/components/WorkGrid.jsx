@@ -2,29 +2,14 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useAuthStore, useDataStore, useUIStore } from '../store'
 import { useDebounce } from '../hooks'
 
-/* ── WorkCard — Professional Adaptive Grid ────────────────── */
+const catLabel = (c) => (c ? c.charAt(0).toUpperCase() + c.slice(1) : '')
+
 function WorkCard({ project, isAdmin, onDelete, onDragStart, onDrop, onClick }) {
   const [dragOver, setDragOver] = useState(false)
-  const [imgRatio, setImgRatio] = useState(null)
-
-  const handleLoad = useCallback((e) => {
-    const { naturalWidth: w, naturalHeight: h } = e.target
-    if (w && h) setImgRatio(h / w)
-  }, [])
-
-  const handleVideoLoad = useCallback((e) => {
-    const { videoWidth: w, videoHeight: h } = e.target
-    if (w && h) setImgRatio(h / w)
-    else setImgRatio(9/16)
-  }, [])
-
-  const ratioStyle = imgRatio
-    ? { paddingTop: `${imgRatio * 100}%`, height: 0 }
-    : { paddingTop: '75%', height: 0 } 
 
   return (
     <div
-      className={`wcard ${isAdmin ? 'edit-mode' : 'view'} ${dragOver ? 'drag-target' : ''} rv`}
+      className={`wcard ${isAdmin ? 'edit-mode' : 'view'} ${dragOver ? 'drag-target' : ''} rv on`}
       draggable={isAdmin}
       onDragStart={() => onDragStart(project.id)}
       onDragEnd={() => setDragOver(false)}
@@ -38,33 +23,21 @@ function WorkCard({ project, isAdmin, onDelete, onDragStart, onDrop, onClick }) 
     >
       {isAdmin && (
         <div className="w-controls">
-          <button className="w-drag vis" title="Geser untuk urutan">☰</button>
+          <button className="w-drag vis">☰</button>
           <button className="w-del vis" onClick={e => { e.stopPropagation(); onDelete(project) }}>✕</button>
         </div>
       )}
 
-      <div className="wm" style={{ position: 'relative', overflow: 'hidden', borderRadius: '12px' }}>
-        <div style={ratioStyle} />
-        <div style={{ position:'absolute', inset:0 }}>
-          {project.media_url ? (
-            project.media_type === 'video'
-              ? <video
-                  src={project.media_url}
-                  muted loop playsInline preload="metadata"
-                  style={{ width:'100%', height:'100%', objectFit:'cover' }}
-                  onLoadedMetadata={handleVideoLoad}
-                />
-              : <img
-                  src={project.media_url}
-                  alt={project.title}
-                  loading="lazy"
-                  style={{ width:'100%', height:'100%', objectFit:'cover' }}
-                  onLoad={handleLoad}
-                />
+      <div className="wm">
+        {project.media_url ? (
+          project.media_type === 'video' ? (
+            <video key={project.id} src={project.media_url} muted loop playsInline preload="metadata" />
           ) : (
-            <div className="wph">{project.emoji || '🎨'}</div>
-          )}
-        </div>
+            <img key={project.id} src={project.media_url} alt={project.title} loading="lazy" />
+          )
+        ) : (
+          <div className="wph">{project.emoji || '🎨'}</div>
+        )}
         <div className="wov">
           <div>
             <div className="wov-t">{project.title}</div>
@@ -81,26 +54,27 @@ function WorkCard({ project, isAdmin, onDelete, onDragStart, onDrop, onClick }) 
   )
 }
 
-/* ── WorkGrid — Fixed Auto-Reveal Logic ─────────────────── */
 export function WorkGrid({ onToast }) {
-  const isAdmin    = useAuthStore(s => s.isAdmin)
+  const isAdmin = useAuthStore(s => s.isAdmin)
   const { projects, deleteProject, reorderProjects } = useDataStore()
   const { activeFilter, openModal } = useUIStore()
-  
-  const [lightbox, setLightbox] = useState({ open: false, idx: 0 })
-  const [dragFrom, setDragFrom] = useState(null)
-  const [confirm,  setConfirm]  = useState(null)
 
-  // FIX: Memastikan filtering terjadi secara reaktif di dalam komponen
+  // FIX: Gunakan useMemo agar filtering reaktif terhadap perubahan data Supabase & tombol klik
   const filtered = useMemo(() => {
-    if (!projects) return []
-    if (activeFilter === 'all') return projects
-    return projects.filter(p => p.category === activeFilter)
+    const list = projects || []
+    if (!activeFilter || activeFilter === 'all') return list
+    return list.filter(p => p.category === activeFilter)
   }, [projects, activeFilter])
 
-  const debouncedPersist = useDebounce(async (newOrder) => {
-    try { await reorderProjects(newOrder) }
-    catch (e) { onToast?.(e.message, 'err') }
+  const [lightbox, setLightbox] = useState({ open: false, idx: 0 })
+  const [dragFrom, setDragFrom] = useState(null)
+  const [confirm, setConfirm] = useState(null)
+
+  const debouncedReorder = useDebounce(async (orderedIds) => {
+    try {
+      await reorderProjects(orderedIds)
+      onToast?.('Urutan disimpan!', 'ok', '↕️')
+    } catch (e) { onToast?.(e.message, 'err') }
   }, 400)
 
   const handleDrop = useCallback((toId) => {
@@ -108,49 +82,40 @@ export function WorkGrid({ onToast }) {
     const ids = filtered.map(p => p.id)
     const from = ids.indexOf(dragFrom)
     const to = ids.indexOf(toId)
-    const next = [...ids]
-    next.splice(from, 1); next.splice(to, 0, dragFrom)
-    const newOrder = next.map((id, i) => ({ id, order_index: i }))
+    const reordered = [...ids]
+    reordered.splice(from, 1)
+    reordered.splice(to, 0, dragFrom)
     setDragFrom(null)
-    debouncedPersist(newOrder)
-  }, [dragFrom, filtered, debouncedPersist])
-
-  const doDelete = useCallback(async () => {
-    if (!confirm) return
-    try {
-      await deleteProject(confirm.id)
-      onToast?.('Karya berhasil dihapus', '', '🗑️')
-    } catch (e) {
-      onToast?.(e.message, 'err')
-    } finally { setConfirm(null) }
-  }, [confirm, deleteProject, onToast])
+    debouncedReorder(reordered)
+  }, [dragFrom, filtered, debouncedReorder])
 
   return (
     <>
       <div className="wgrid">
-        {!filtered.length && !isAdmin ? (
-          <div className="wgrid-empty" style={{ gridColumn: '1/-1', padding: '100px 0' }}>
-            <div style={{ fontSize:48 }}>🎨</div>
-            <p>Belum ada karya untuk kategori ini.</p>
+        {/* FIX: Map langsung dari 'filtered' agar re-render terpancing otomatis */}
+        {filtered.map((p, i) => (
+          <WorkCard
+            key={p.id}
+            project={p}
+            isAdmin={isAdmin}
+            onDelete={setConfirm}
+            onDragStart={setDragFrom}
+            onDrop={handleDrop}
+            onClick={() => setLightbox({ open: true, idx: i })}
+          />
+        ))}
+
+        {/* Jika kosong dan bukan admin, tampilkan pesan kosong agar UI tidak 'patah' */}
+        {filtered.length === 0 && !isAdmin && (
+          <div className="wgrid-empty" style={{ gridColumn: '1/-1', textAlign: 'center', padding: '100px 0', opacity: 0.5 }}>
+             <p>Belum ada karya di kategori ini.</p>
           </div>
-        ) : (
-          filtered.map((p, i) => (
-            <WorkCard
-              key={p.id}
-              project={p}
-              isAdmin={isAdmin}
-              onDelete={setConfirm}
-              onDragStart={setDragFrom}
-              onDrop={handleDrop}
-              onClick={() => setLightbox({ open: true, idx: i })}
-            />
-          ))
         )}
 
         {isAdmin && (
           <div className="wadd" onClick={() => openModal('upload')}>
             <div className="wadd-c">+</div>
-            <span className="wadd-l">Tambah Karya Baru</span>
+            <span className="wadd-l">Tambah Karya</span>
           </div>
         )}
       </div>
@@ -166,11 +131,17 @@ export function WorkGrid({ onToast }) {
       {confirm && (
         <div className="mov open" onClick={e => e.target === e.currentTarget && setConfirm(null)}>
           <div className="mb">
-            <h3>Hapus Karya?</h3>
-            <p>"{confirm.title}" akan dihapus permanen.</p>
+            <div className="ci">🗑️</div>
+            <div className="ct">Hapus Karya?</div>
             <div className="cr">
               <button className="btn-c" onClick={() => setConfirm(null)}>Batal</button>
-              <button className="btn-d" onClick={doDelete}>Hapus</button>
+              <button className="btn-d" onClick={async () => {
+                try {
+                  await deleteProject(confirm.id)
+                  onToast?.('Karya dihapus.', '', '🗑️')
+                } catch (e) { onToast?.(e.message, 'err') }
+                finally { setConfirm(null) }
+              }}>Hapus</button>
             </div>
           </div>
         </div>
@@ -179,36 +150,6 @@ export function WorkGrid({ onToast }) {
   )
 }
 
-/* ── Filters — Responsive & Realtime ────────────────────── */
-export function WorkFilters() {
-  const activeFilter = useUIStore(s => s.activeFilter)
-  const setFilter    = useUIStore(s => s.setFilter)
-  const projects     = useDataStore(s => s.projects) || []
-
-  const counts = useMemo(() => ({
-    all: projects.length,
-    design: projects.filter(p => p.category === 'design').length,
-    photo: projects.filter(p => p.category === 'photo').length,
-    video: projects.filter(p => p.category === 'video').length,
-  }), [projects])
-
-  return (
-    <div className="filters rv on"> {/* Tambahkan class 'on' agar langsung muncul */}
-      {['all','design','photo','video'].map(f => (
-        <button
-          key={f}
-          className={`fb ${activeFilter === f ? 'active' : ''}`}
-          onClick={() => setFilter(f)}
-        >
-          {f.charAt(0).toUpperCase() + f.slice(1)}
-          {counts[f] > 0 && <span className="fb-count">{counts[f]}</span>}
-        </button>
-      ))}
-    </div>
-  )
-}
-
-/* ── Lightbox — Professional Gallery ─────────────────────── */
 function Lightbox({ items, initialIdx, onClose }) {
   const [idx, setIdx] = useState(initialIdx)
   const p = items[idx]
@@ -227,21 +168,18 @@ function Lightbox({ items, initialIdx, onClose }) {
 
   return (
     <div className="lb open" onClick={e => e.target === e.currentTarget && onClose()}>
-      <button className="lb-btn lb-x" onClick={onClose}>✕</button>
-      <div className="lb-ctr">{idx + 1} / {items.length}</div>
-      <div className="lb-in">
-        {p.media_url ? (
-          p.media_type === 'video' 
-            ? <video src={p.media_url} controls autoPlay style={{ maxHeight:'80vh', maxWidth:'90vw' }} />
-            : <img src={p.media_url} alt={p.title} style={{ maxHeight:'80vh', maxWidth:'90vw' }} />
-        ) : <div style={{ fontSize:100 }}>{p.emoji}</div>}
-        <div className="lb-cap">
-          <div className="lb-cap-t">{p.title}</div>
-          <div className="lb-cap-s">{catLabel(p.category)} {p.description && `· ${p.description}`}</div>
+      <button className="lb-close" onClick={onClose}>✕</button>
+      <div className="lb-content">
+        {p.media_type === 'video' ? (
+          <video src={p.media_url} controls autoPlay style={{ maxHeight: '80vh' }} />
+        ) : (
+          <img src={p.media_url} alt={p.title} style={{ maxHeight: '80vh' }} />
+        )}
+        <div className="lb-info">
+          <div className="lb-title">{p.title}</div>
+          <div className="lb-sub">{catLabel(p.category)}</div>
         </div>
       </div>
     </div>
   )
 }
-
-function catLabel(c) { return c ? c.charAt(0).toUpperCase() + c.slice(1) : '' }
