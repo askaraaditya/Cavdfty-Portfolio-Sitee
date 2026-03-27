@@ -4,6 +4,7 @@ import { useDebounce } from '../hooks'
 
 const catLabel = (c) => (c ? c.charAt(0).toUpperCase() + c.slice(1) : '')
 
+/* ── WorkCard ────────────────────────────────────────────── */
 function WorkCard({ project, isAdmin, onDelete, onDragStart, onDrop, onClick }) {
   const [dragOver, setDragOver] = useState(false)
 
@@ -54,12 +55,12 @@ function WorkCard({ project, isAdmin, onDelete, onDragStart, onDrop, onClick }) 
   )
 }
 
+/* ── WorkGrid — Utama ────────────────────────────────────── */
 export function WorkGrid({ onToast }) {
   const isAdmin = useAuthStore(s => s.isAdmin)
   const { projects, deleteProject, reorderProjects } = useDataStore()
   const { activeFilter, openModal } = useUIStore()
 
-  // FIX: Gunakan useMemo agar filtering reaktif terhadap perubahan data Supabase & tombol klik
   const filtered = useMemo(() => {
     const list = projects || []
     if (!activeFilter || activeFilter === 'all') return list
@@ -92,7 +93,6 @@ export function WorkGrid({ onToast }) {
   return (
     <>
       <div className="wgrid">
-        {/* FIX: Map langsung dari 'filtered' agar re-render terpancing otomatis */}
         {filtered.map((p, i) => (
           <WorkCard
             key={p.id}
@@ -105,7 +105,6 @@ export function WorkGrid({ onToast }) {
           />
         ))}
 
-        {/* Jika kosong dan bukan admin, tampilkan pesan kosong agar UI tidak 'patah' */}
         {filtered.length === 0 && !isAdmin && (
           <div className="wgrid-empty" style={{ gridColumn: '1/-1', textAlign: 'center', padding: '100px 0', opacity: 0.5 }}>
              <p>Belum ada karya di kategori ini.</p>
@@ -150,6 +149,36 @@ export function WorkGrid({ onToast }) {
   )
 }
 
+/* ── WorkFilters — Komponen yang Tadi Hilang ────────────── */
+export function WorkFilters() {
+  const activeFilter = useUIStore(s => s.activeFilter)
+  const setFilter    = useUIStore(s => s.setFilter)
+  const projects     = useDataStore(s => s.projects) || []
+
+  const counts = useMemo(() => ({
+    all: projects.length,
+    design: projects.filter(p => p.category === 'design').length,
+    photo: projects.filter(p => p.category === 'photo').length,
+    video: projects.filter(p => p.category === 'video').length,
+  }), [projects])
+
+  return (
+    <div className="filters rv on">
+      {['all', 'design', 'photo', 'video'].map(f => (
+        <button
+          key={f}
+          className={`fb ${activeFilter === f ? 'active' : ''}`}
+          onClick={() => setFilter(f)}
+        >
+          {f.charAt(0).toUpperCase() + f.slice(1)}
+          {counts[f] > 0 && <span className="fb-count">{counts[f]}</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+/* ── Lightbox ────────────────────────────────────────────── */
 function Lightbox({ items, initialIdx, onClose }) {
   const [idx, setIdx] = useState(initialIdx)
   const p = items[idx]
