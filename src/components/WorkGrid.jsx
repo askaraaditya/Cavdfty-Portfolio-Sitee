@@ -2,9 +2,10 @@ import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { useAuthStore, useDataStore, useUIStore } from '../store'
 import { useDebounce } from '../hooks'
 
+// Helper untuk format label kategori (contoh: 'design' -> 'Design')
 const catLabel = (c) => (c ? c.charAt(0).toUpperCase() + c.slice(1) : '')
 
-/* ── WorkCard ────────────────────────────────────────────── */
+/* ── WorkCard Component ─────────────────────────────────── */
 function WorkCard({ project, isAdmin, onDelete, onDragStart, onDrop, onClick }) {
   const [dragOver, setDragOver] = useState(false)
 
@@ -24,7 +25,7 @@ function WorkCard({ project, isAdmin, onDelete, onDragStart, onDrop, onClick }) 
     >
       {isAdmin && (
         <div className="w-controls">
-          <button className="w-drag vis">☰</button>
+          <button className="w-drag vis" title="Tahan untuk pindah urutan">☰</button>
           <button className="w-del vis" onClick={e => { e.stopPropagation(); onDelete(project) }}>✕</button>
         </div>
       )}
@@ -55,12 +56,13 @@ function WorkCard({ project, isAdmin, onDelete, onDragStart, onDrop, onClick }) 
   )
 }
 
-/* ── WorkGrid — Utama ────────────────────────────────────── */
+/* ── WorkGrid Component ─────────────────────────────────── */
 export function WorkGrid({ onToast }) {
   const isAdmin = useAuthStore(s => s.isAdmin)
   const { projects, deleteProject, reorderProjects } = useDataStore()
   const { activeFilter, openModal } = useUIStore()
 
+  // Logic Filtering: Memastikan data reaktif terhadap klik tombol kategori
   const filtered = useMemo(() => {
     const list = projects || []
     if (!activeFilter || activeFilter === 'all') return list
@@ -149,7 +151,7 @@ export function WorkGrid({ onToast }) {
   )
 }
 
-/* ── WorkFilters — Komponen yang Tadi Hilang ────────────── */
+/* ── WorkFilters Component (PENTING: Jangan dihapus!) ── */
 export function WorkFilters() {
   const activeFilter = useUIStore(s => s.activeFilter)
   const setFilter    = useUIStore(s => s.setFilter)
@@ -178,7 +180,7 @@ export function WorkFilters() {
   )
 }
 
-/* ── Lightbox ────────────────────────────────────────────── */
+/* ── Lightbox Component ─────────────────────────────────── */
 function Lightbox({ items, initialIdx, onClose }) {
   const [idx, setIdx] = useState(initialIdx)
   const p = items[idx]
@@ -200,9 +202,9 @@ function Lightbox({ items, initialIdx, onClose }) {
       <button className="lb-close" onClick={onClose}>✕</button>
       <div className="lb-content">
         {p.media_type === 'video' ? (
-          <video src={p.media_url} controls autoPlay style={{ maxHeight: '80vh' }} />
+          <video src={p.media_url} controls autoPlay style={{ maxHeight: '80vh', maxWidth: '90vw' }} />
         ) : (
-          <img src={p.media_url} alt={p.title} style={{ maxHeight: '80vh' }} />
+          <img src={p.media_url} alt={p.title} style={{ maxHeight: '80vh', maxWidth: '90vw', objectFit: 'contain' }} />
         )}
         <div className="lb-info">
           <div className="lb-title">{p.title}</div>
